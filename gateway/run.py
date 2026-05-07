@@ -7263,7 +7263,7 @@ class GatewayRunner:
             f"**Created:** {session_entry.created_at.strftime('%Y-%m-%d %H:%M')}",
             f"**Last Activity:** {session_entry.updated_at.strftime('%Y-%m-%d %H:%M')}",
             f"**Tokens:** {db_total_tokens:,}",
-            f"**Agent Running:** {'Yes ⚡' if is_running else 'No'}",
+            f"**Agent State:** {'Running ⚡' if is_running else 'Idle (ready)'}",
         ])
         if queue_depth:
             lines.append(f"**Queued follow-ups:** {queue_depth}")

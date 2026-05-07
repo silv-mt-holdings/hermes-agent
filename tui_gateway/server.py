@@ -2392,7 +2392,7 @@ def _(rid, params: dict) -> dict:
             f"Created: {created.strftime('%Y-%m-%d %H:%M')}",
             f"Last Activity: {updated.strftime('%Y-%m-%d %H:%M')}",
             f"Tokens: {int(usage.get('total') or 0):,}",
-            f"Agent Running: {'Yes' if session.get('running') else 'No'}",
+            f"Agent State: {'Running' if session.get('running') else 'Idle (ready)'}",
         ]
     )
     return _ok(rid, {"output": "\n".join(lines)})

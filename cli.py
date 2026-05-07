@@ -4820,7 +4820,7 @@ class HermesCLI:
             f"Created: {created_at.strftime('%Y-%m-%d %H:%M')}",
             f"Last Activity: {updated_at.strftime('%Y-%m-%d %H:%M')}",
             f"Tokens: {total_tokens:,}",
-            f"Agent Running: {'Yes' if is_running else 'No'}",
+            f"Agent State: {'Running' if is_running else 'Idle (ready)'}",
         ])
         self._console_print("\n".join(lines), highlight=False, markup=False)
     

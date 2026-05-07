@@ -2206,7 +2206,7 @@ def test_session_status_reads_live_gateway_agent(monkeypatch):
     assert "Title: Live TUI" in out
     assert "Model: live-model (live-provider)" in out
     assert "Tokens: 1,234" in out
-    assert "Agent Running: Yes" in out
+    assert "Agent State: Running" in out
 
 
 def test_skills_reload_runs_in_gateway_process(monkeypatch):

@@ -7698,7 +7698,7 @@ def _cmd_update_impl(args, gateway_mode: bool):
                             if _graceful_ok:
                                 # Gateway exited 75; systemd should relaunch
                                 # via Restart=on-failure.  The unit's
-                                # RestartSec (default 30s on ours) gates the
+                                # RestartSec gates the
                                 # respawn — poll past that + slack so we
                                 # don't give up mid-cooldown and falsely
                                 # print "drained but didn't relaunch".  For

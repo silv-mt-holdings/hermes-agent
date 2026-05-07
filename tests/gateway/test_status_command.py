@@ -98,7 +98,7 @@ async def test_status_command_reports_running_agent_without_interrupt(monkeypatc
 
     assert "**Session ID:** `sess-1`" in result
     assert "**Tokens:** 321" in result
-    assert "**Agent Running:** Yes ⚡" in result
+    assert "**Agent State:** Running ⚡" in result
     assert "**Title:**" not in result
     running_agent.interrupt.assert_not_called()
     assert runner._pending_messages == {}
@@ -504,7 +504,7 @@ async def test_status_command_bypasses_active_session_guard():
 
     async def fake_handler(event):
         handler_called_with.append(event)
-        return "📊 **Hermes Gateway Status**\n**Agent Running:** Yes ⚡"
+        return "📊 **Hermes Gateway Status**\n**Agent State:** Running ⚡"
 
     # Concrete subclass to avoid abstract method errors
     class _ConcreteAdapter(BasePlatformAdapter):
@@ -540,7 +540,7 @@ async def test_status_command_bypasses_active_session_guard():
 
     assert handler_called_with, "/status handler was never called (event was queued or dropped)"
     assert sent, "/status response was never sent"
-    assert "Agent Running" in sent[0]
+    assert "Agent State" in sent[0]
     assert not interrupt_event.is_set(), "/status incorrectly triggered an agent interrupt"
     assert session_key not in adapter._pending_messages, "/status was incorrectly queued"
 
