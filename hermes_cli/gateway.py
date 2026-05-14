@@ -1734,8 +1734,10 @@ def _build_wsl_interop_paths(path_entries: list[str]) -> list[str]:
     ``/mnt/c/WINDOWS/System32``. systemd user services do not, so gateway tools
     that call ``powershell.exe``/``cmd.exe`` work in a terminal but fail in the
     background service unless we persist the relevant entries at install time.
+    This is opt-in so Linux-primary installs do not gain Windows executable
+    paths by default.
     """
-    if not is_wsl():
+    if not is_wsl() or os.environ.get("HERMES_SYSTEMD_INCLUDE_WSL_PATHS") != "1":
         return []
 
     candidates: list[str] = []

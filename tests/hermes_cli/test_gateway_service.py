@@ -223,8 +223,22 @@ class TestGeneratedSystemdUnits:
 
         assert "/home/test/.nvm/versions/node/v24.14.0/bin" in unit
 
-    def test_user_unit_includes_wsl_windows_interop_paths(self, monkeypatch):
+    def test_user_unit_omits_wsl_windows_interop_paths_by_default(self, monkeypatch):
         monkeypatch.setattr(gateway_cli, "is_wsl", lambda: True)
+        monkeypatch.setenv(
+            "PATH",
+            "/usr/local/bin:/mnt/c/WINDOWS/system32:/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/",
+        )
+        monkeypatch.setattr(gateway_cli.shutil, "which", lambda cmd: None)
+
+        unit = gateway_cli.generate_systemd_unit(system=False)
+
+        assert "/mnt/c/WINDOWS/system32" not in unit
+        assert "/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/" not in unit
+
+    def test_user_unit_includes_wsl_windows_interop_paths_when_enabled(self, monkeypatch):
+        monkeypatch.setattr(gateway_cli, "is_wsl", lambda: True)
+        monkeypatch.setenv("HERMES_SYSTEMD_INCLUDE_WSL_PATHS", "1")
         monkeypatch.setenv(
             "PATH",
             "/usr/local/bin:/mnt/c/WINDOWS/system32:/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/",
@@ -245,8 +259,24 @@ class TestGeneratedSystemdUnits:
 
         assert "/mnt/c/WINDOWS/system32" not in unit
 
-    def test_system_unit_includes_wsl_windows_interop_paths(self, monkeypatch):
+    def test_system_unit_omits_wsl_windows_interop_paths_by_default(self, monkeypatch):
         monkeypatch.setattr(gateway_cli, "is_wsl", lambda: True)
+        monkeypatch.setattr(
+            gateway_cli,
+            "_system_service_identity",
+            lambda run_as_user=None: ("alice", "alice", "/home/alice"),
+        )
+        monkeypatch.setattr(gateway_cli, "_hermes_home_for_target_user", lambda home: "/home/alice/.hermes")
+        monkeypatch.setenv("PATH", "/usr/local/bin:/mnt/c/WINDOWS/system32")
+        monkeypatch.setattr(gateway_cli.shutil, "which", lambda cmd: None)
+
+        unit = gateway_cli.generate_systemd_unit(system=True, run_as_user="alice")
+
+        assert "/mnt/c/WINDOWS/system32" not in unit
+
+    def test_system_unit_includes_wsl_windows_interop_paths_when_enabled(self, monkeypatch):
+        monkeypatch.setattr(gateway_cli, "is_wsl", lambda: True)
+        monkeypatch.setenv("HERMES_SYSTEMD_INCLUDE_WSL_PATHS", "1")
         monkeypatch.setattr(
             gateway_cli,
             "_system_service_identity",
