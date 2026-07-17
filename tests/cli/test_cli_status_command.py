@@ -80,7 +80,7 @@ def test_show_session_status_prints_gateway_style_summary():
     assert "Title: My titled session" in printed
     assert "Model: openai/gpt-5.4 (openai)" in printed
     assert "Tokens: 321" in printed
-    assert "Agent State: Idle (ready)" in printed
+    assert "Agent Running: No" in printed
     _, kwargs = cli_obj.console.print.call_args
     assert kwargs.get("highlight") is False
     assert kwargs.get("markup") is False
