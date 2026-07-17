@@ -2590,10 +2590,13 @@ def _build_wsl_interop_paths(path_entries: list[str], system: bool = False) -> l
 
     Opt-in so Linux-primary installs do not gain Windows executable paths by
     default. ``HERMES_SYSTEMD_INCLUDE_WSL_PATHS`` accepts the usual truthy
-    spellings (1/true/yes/on; anything else set = explicit opt-out). When the
-    variable is UNSET, the installed unit's existing ``/mnt/*`` entries are
-    preserved verbatim, so regeneration from a context without the operator's
-    shell env neither strips an opted-in unit nor flags it stale.
+    spellings (1/true/yes/on); a set NON-EMPTY falsy value (0/false/no/off) is
+    an explicit opt-out that strips the paths. When the variable is unset OR
+    set empty (the ``export VAR=`` clear idiom, treated as unset — same
+    blank-falls-through convention as ``_env_multiplex_profiles_override``),
+    the installed unit's existing ``/mnt/*`` entries are preserved verbatim,
+    so regeneration from a context without the operator's shell env neither
+    strips an opted-in unit nor flags it stale.
     """
     if not is_wsl():
         return []
