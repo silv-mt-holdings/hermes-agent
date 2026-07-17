@@ -500,8 +500,14 @@ class TestGeneratedSystemdUnits:
         assert str(local_bin) in plist
         assert str(profile_node_bin) not in plist
 
-    def test_user_unit_omits_wsl_windows_interop_paths_by_default(self, monkeypatch):
+    def test_user_unit_omits_wsl_windows_interop_paths_by_default(self, tmp_path, monkeypatch):
         monkeypatch.setattr(gateway_cli, "is_wsl", lambda: True)
+        # Default-off must hold regardless of the ambient environment and of
+        # any live unit installed on the machine running the tests.
+        monkeypatch.delenv("HERMES_SYSTEMD_INCLUDE_WSL_PATHS", raising=False)
+        monkeypatch.setattr(
+            gateway_cli, "get_systemd_unit_path", lambda system=False: tmp_path / "absent.service"
+        )
         monkeypatch.setenv(
             "PATH",
             "/usr/local/bin:/mnt/c/WINDOWS/system32:/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/",
@@ -527,8 +533,28 @@ class TestGeneratedSystemdUnits:
         assert "/mnt/c/WINDOWS/system32" in unit
         assert "/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/" in unit
 
-    def test_user_unit_omits_windows_interop_paths_outside_wsl(self, monkeypatch):
-        monkeypatch.setattr(gateway_cli, "is_wsl", lambda: False)
+    def test_user_unit_includes_wsl_windows_interop_paths_for_truthy_spellings(self, monkeypatch):
+        # The flag accepts the repo-wide truthy set (_truthy_env), not just "1".
+        monkeypatch.setattr(gateway_cli, "is_wsl", lambda: True)
+        monkeypatch.setenv("HERMES_SYSTEMD_INCLUDE_WSL_PATHS", "true")
+        monkeypatch.setenv("PATH", "/usr/local/bin:/mnt/c/WINDOWS/system32")
+        monkeypatch.setattr(gateway_cli.shutil, "which", lambda cmd: None)
+
+        unit = gateway_cli.generate_systemd_unit(system=False)
+
+        assert "/mnt/c/WINDOWS/system32" in unit
+
+    def test_user_unit_explicit_opt_out_overrides_installed_unit(self, tmp_path, monkeypatch):
+        # An explicitly falsy flag strips the paths even when the installed
+        # unit carries them (deliberate opt-out beats the sticky read-back).
+        installed = tmp_path / "hermes-gateway.service"
+        installed.write_text(
+            '[Service]\nEnvironment="PATH=/usr/local/bin:/mnt/c/WINDOWS/system32"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(gateway_cli, "is_wsl", lambda: True)
+        monkeypatch.setenv("HERMES_SYSTEMD_INCLUDE_WSL_PATHS", "0")
+        monkeypatch.setattr(gateway_cli, "get_systemd_unit_path", lambda system=False: installed)
         monkeypatch.setenv("PATH", "/usr/local/bin:/mnt/c/WINDOWS/system32")
         monkeypatch.setattr(gateway_cli.shutil, "which", lambda cmd: None)
 
@@ -536,8 +562,46 @@ class TestGeneratedSystemdUnits:
 
         assert "/mnt/c/WINDOWS/system32" not in unit
 
-    def test_system_unit_omits_wsl_windows_interop_paths_by_default(self, monkeypatch):
+    def test_user_unit_preserves_installed_interop_paths_when_env_unset(self, tmp_path, monkeypatch):
+        # Regeneration in a context without the operator's shell env (systemd
+        # self-heal, cron) must preserve the installed unit's /mnt entries
+        # verbatim — no strip, no staleness ping-pong.
+        installed = tmp_path / "hermes-gateway.service"
+        installed.write_text(
+            '[Service]\n'
+            'Environment="PATH=/usr/local/bin:/mnt/c/WINDOWS/system32:/mnt/c/custom/tools"\n',
+            encoding="utf-8",
+        )
         monkeypatch.setattr(gateway_cli, "is_wsl", lambda: True)
+        monkeypatch.delenv("HERMES_SYSTEMD_INCLUDE_WSL_PATHS", raising=False)
+        monkeypatch.setattr(gateway_cli, "get_systemd_unit_path", lambda system=False: installed)
+        # Service-like context: no /mnt entries in the ambient PATH at all.
+        monkeypatch.setenv("PATH", "/usr/local/bin:/usr/bin")
+        monkeypatch.setattr(gateway_cli.shutil, "which", lambda cmd: None)
+
+        unit = gateway_cli.generate_systemd_unit(system=False)
+
+        assert "/mnt/c/WINDOWS/system32" in unit
+        assert "/mnt/c/custom/tools" in unit
+
+    def test_user_unit_omits_windows_interop_paths_outside_wsl(self, monkeypatch):
+        monkeypatch.setattr(gateway_cli, "is_wsl", lambda: False)
+        # Even with the opt-in set, non-WSL hosts never get Windows paths —
+        # the is_wsl gate must hold independently of the env flag.
+        monkeypatch.setenv("HERMES_SYSTEMD_INCLUDE_WSL_PATHS", "1")
+        monkeypatch.setenv("PATH", "/usr/local/bin:/mnt/c/WINDOWS/system32")
+        monkeypatch.setattr(gateway_cli.shutil, "which", lambda cmd: None)
+
+        unit = gateway_cli.generate_systemd_unit(system=False)
+
+        assert "/mnt/c/WINDOWS/system32" not in unit
+
+    def test_system_unit_omits_wsl_windows_interop_paths_by_default(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(gateway_cli, "is_wsl", lambda: True)
+        monkeypatch.delenv("HERMES_SYSTEMD_INCLUDE_WSL_PATHS", raising=False)
+        monkeypatch.setattr(
+            gateway_cli, "get_systemd_unit_path", lambda system=False: tmp_path / "absent.service"
+        )
         monkeypatch.setattr(
             gateway_cli,
             "_system_service_identity",

@@ -2549,17 +2549,66 @@ def _build_user_local_paths(home: Path, path_entries: list[str]) -> list[str]:
     return [p for p in candidates if p not in path_entries and Path(p).exists()]
 
 
-def _build_wsl_interop_paths(path_entries: list[str]) -> list[str]:
+def _installed_unit_wsl_interop_paths(system: bool = False) -> list[str]:
+    """Return the ``/mnt/*`` PATH entries baked into the installed unit, if any.
+
+    Read back from the installed unit file (same adopt-installed-state pattern
+    as ``_sync_hermes_home_from_systemd_unit``) so unit regeneration in
+    contexts that lack the operator's shell environment — the on-boot
+    self-heal, ``systemd_unit_is_current()`` from cron/CI, ``sudo`` — can
+    preserve a prior opt-in instead of stripping the paths and ping-ponging
+    the unit between shell and service contexts.
+    """
+    try:
+        unit_path = get_systemd_unit_path(system=system)
+        if not unit_path.exists():
+            return []
+        text = unit_path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    for line in text.splitlines():
+        payload = line.strip()
+        if not payload.startswith("Environment="):
+            continue
+        payload = payload[len("Environment="):].strip().strip('"')
+        if payload.startswith("PATH="):
+            return [
+                entry
+                for entry in payload[len("PATH="):].split(os.pathsep)
+                if entry.startswith("/mnt/")
+            ]
+    return []
+
+
+def _build_wsl_interop_paths(path_entries: list[str], system: bool = False) -> list[str]:
     """Return WSL Windows interop PATH entries for generated systemd units.
 
     WSL shells normally inherit Windows PATH entries such as
     ``/mnt/c/WINDOWS/System32``. systemd user services do not, so gateway tools
     that call ``powershell.exe``/``cmd.exe`` work in a terminal but fail in the
     background service unless we persist the relevant entries at install time.
-    This is opt-in so Linux-primary installs do not gain Windows executable
-    paths by default.
+
+    Opt-in so Linux-primary installs do not gain Windows executable paths by
+    default. ``HERMES_SYSTEMD_INCLUDE_WSL_PATHS`` accepts the usual truthy
+    spellings (1/true/yes/on; anything else set = explicit opt-out). When the
+    variable is UNSET, the installed unit's existing ``/mnt/*`` entries are
+    preserved verbatim, so regeneration from a context without the operator's
+    shell env neither strips an opted-in unit nor flags it stale.
     """
-    if not is_wsl() or os.environ.get("HERMES_SYSTEMD_INCLUDE_WSL_PATHS") != "1":
+    if not is_wsl():
+        return []
+
+    flag = os.environ.get("HERMES_SYSTEMD_INCLUDE_WSL_PATHS")
+    if flag is None or flag.strip() == "":
+        preserved = _installed_unit_wsl_interop_paths(system=system)
+        result: list[str] = []
+        seen = set(path_entries)
+        for entry in preserved:
+            if entry and entry not in seen:
+                seen.add(entry)
+                result.append(entry)
+        return result
+    if not _truthy_env(flag):
         return []
 
     candidates: list[str] = []
@@ -2758,7 +2807,7 @@ def generate_systemd_unit(system: bool = False, run_as_user: str | None = None) 
         venv_dir = _remap_path_for_user(venv_dir, home_dir)
         path_entries = [_remap_path_for_user(p, home_dir) for p in path_entries]
         path_entries.extend(_build_user_local_paths(Path(home_dir), path_entries))
-        path_entries.extend(_build_wsl_interop_paths(path_entries))
+        path_entries.extend(_build_wsl_interop_paths(path_entries, system=True))
         path_entries.extend(common_bin_paths)
         sane_path = ":".join(path_entries)
         return f"""[Unit]
@@ -2798,7 +2847,7 @@ WantedBy=multi-user.target
     hermes_home = str(get_hermes_home().resolve())
     profile_arg = _profile_arg(hermes_home)
     path_entries.extend(_build_user_local_paths(Path.home(), path_entries))
-    path_entries.extend(_build_wsl_interop_paths(path_entries))
+    path_entries.extend(_build_wsl_interop_paths(path_entries, system=False))
     path_entries.extend(common_bin_paths)
     sane_path = ":".join(path_entries)
     return f"""[Unit]
